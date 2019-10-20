@@ -9,7 +9,6 @@ We are going to cover building an API that allows the following:
 * Guests can signup with an email and password
 * Can send the email and password to return a JSON Web Token (JWT)
 * As a user, can create a new team
-* As a user, can create a new team
 * Can see all of your teams as a user
 
 This will not be a complete application. There are many things to consider such as user roles and permissions, those are outside of the scope of this demo. Our goal is to get the basic concepts of building an API and more importantly, structuring the code for easy testing.
