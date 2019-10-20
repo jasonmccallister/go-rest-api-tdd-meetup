@@ -34,16 +34,40 @@ func main() {
 
 	db.AutoMigrate(&user{})
 
+	// this creates a duplicate route error
+	http.HandleFunc("/users", usersIndex(db))
+
 	http.HandleFunc("/users", usersStore(db))
 
 	http.ListenAndServe(":8080", nil)
 }
 
+func usersIndex(db *gorm.DB) http.HandlerFunc {
+	type userIndexResponse struct {
+		Users []user `json:"users"`
+	}
+	resp := userIndexResponse{}
+	users := []user{}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-type", "application/json")
+		db.Find(&users)
+
+		resp.Users = users
+
+		data, err := json.Marshal(resp)
+		if err != nil {
+			log.Println(err)
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write(data)
+	}
+}
+
 func usersStore(db *gorm.DB) http.HandlerFunc {
 	type userStoreRequest struct {
-		Email                string `json:"email"`
-		Password             string `json:"password"`
-		PasswordConfirmation string `json:"password_confirmation"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
 
 	type userStoreResponse struct {
@@ -52,12 +76,14 @@ func usersStore(db *gorm.DB) http.HandlerFunc {
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		req := userStoreRequest{}
+		w.Header().Set("Content-type", "application/json")
+
+		r.ParseForm()
 
 		// define the rules
 		rules := govalidator.MapData{
-			"email":                 []string{"required", "min:4", "max:20", "email"},
-			"password":              []string{"required", "min:8", "max:255"},
-			"password_confirmation": []string{"required", "min:8", "max:255"},
+			"email":    []string{"required", "min:4", "max:20", "email"},
+			"password": []string{"required", "min:8", "max:255"},
 		}
 
 		// options for the validator
@@ -74,7 +100,6 @@ func usersStore(db *gorm.DB) http.HandlerFunc {
 		e := v.ValidateJSON()
 		if len(e) >= 1 {
 			err := map[string]interface{}{"errors": e}
-			w.Header().Set("Content-type", "application/json")
 			json.NewEncoder(w).Encode(err)
 			return
 		}
