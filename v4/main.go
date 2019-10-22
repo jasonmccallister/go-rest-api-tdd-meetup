@@ -7,11 +7,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/thedevsaddam/govalidator"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
-	"golang.org/x/crypto/bcrypt"
+	"github.com/thedevsaddam/govalidator"
 )
 
 // user represents a customer of the application
@@ -35,7 +35,7 @@ func main() {
 	db.AutoMigrate(&user{})
 
 	// this creates a duplicate route error
-	http.HandleFunc("/users", usersIndex(db))
+	// http.HandleFunc("/users", usersIndex(db))
 
 	http.HandleFunc("/users", usersStore(db))
 
@@ -71,18 +71,27 @@ func usersStore(db *gorm.DB) http.HandlerFunc {
 	}
 
 	type userStoreResponse struct {
-		ID    uint   `json:"id"`
-		Token string `json:"token"`
+		ID uint `json:"id"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
-		req := userStoreRequest{}
-		w.Header().Set("Content-type", "application/json")
+		w.Header().Set("content-type", "application/json")
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			w.Write([]byte(`{"error": "method not allowed"}`))
+			return
+		}
 
-		r.ParseForm()
+		req := userStoreRequest{}
+		err := r.ParseForm()
+		if err != nil {
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			w.Write([]byte(`{"error": "method not allowed"}`))
+			return
+		}
 
 		// define the rules
 		rules := govalidator.MapData{
-			"email":    []string{"required", "min:4", "max:20", "email"},
+			"email":    []string{"required", "min:4", "max:30", "email"},
 			"password": []string{"required", "min:8", "max:255"},
 		}
 
@@ -99,10 +108,13 @@ func usersStore(db *gorm.DB) http.HandlerFunc {
 		// actually validate the request
 		e := v.ValidateJSON()
 		if len(e) >= 1 {
+			w.WriteHeader(http.StatusUnprocessableEntity)
 			err := map[string]interface{}{"errors": e}
 			json.NewEncoder(w).Encode(err)
 			return
 		}
+
+		w.WriteHeader(http.StatusCreated)
 
 		// read the body from the response
 		body, _ := ioutil.ReadAll(r.Body)
@@ -118,11 +130,11 @@ func usersStore(db *gorm.DB) http.HandlerFunc {
 		}
 
 		// persist the user
-		db.FirstOrCreate(&user{}, newUser).First(&newUser)
+		db.FirstOrCreate(&user{}, newUser)
+		db.First(&newUser)
 
 		resp := userStoreResponse{
-			ID:    newUser.ID,
-			Token: "something",
+			ID: newUser.ID,
 		}
 
 		data, _ := json.Marshal(resp)
